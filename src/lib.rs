@@ -21,13 +21,18 @@
 
 #[macro_use]
 extern crate bitflags;
+extern crate gio_sys;
 extern crate glib_sys;
+extern crate gobject_sys;
 extern crate libc;
 
+use gio_sys::GAsyncResult;
 use glib_sys::{GError, GVariant};
+use gobject_sys::GObject;
 
-use libc::{c_char, c_int, c_uint, c_void, uint32_t};
+use libc::{c_char, c_uint, c_void, uint32_t};
 
+type GAsyncReadyCallback = unsafe extern fn(source_object: *mut GObject, res: *mut GAsyncResult, user_data: *mut c_void);
 type GBusAcquiredCallback = unsafe extern fn(connection: *mut GDBusConnection, name: *const c_char, user_data: *mut c_void);
 type GBusNameAcquiredCallback = unsafe extern fn(connection: *mut GDBusConnection, name: *const c_char, user_data: *mut c_void);
 type GBusNameAppearedCallback = unsafe extern fn(connection: *mut GDBusConnection, name: *const c_char, name_owner: *const c_char, user_data: *mut c_void);
@@ -84,14 +89,21 @@ pub enum GBusType {
 pub enum GDBusConnection {}
 pub enum GDBusAnnotationInfo {}
 pub enum GDBusMessage {}
-pub enum GDBusMethodInfo {}
 pub enum GDBusMethodInvocation {}
 pub enum GDBusPropertyInfo {}
 pub enum GDBusSignalInfo {}
 
 #[repr(C)]
+pub struct GDBusArgInfo {
+    pub ref_count: isize,
+    pub name: *const c_char,
+    pub signature: *const c_char,
+    pub annotations: *mut *mut GDBusAnnotationInfo,
+}
+
+#[repr(C)]
 pub struct GDBusInterfaceInfo {
-    ref_count: c_int,
+    pub ref_count: isize,
     pub name: *const c_char,
     pub methods: *mut *mut GDBusMethodInfo,
     pub signals: *mut *mut GDBusSignalInfo,
@@ -100,8 +112,17 @@ pub struct GDBusInterfaceInfo {
 }
 
 #[repr(C)]
+pub struct GDBusMethodInfo {
+    pub ref_count: isize,
+    pub name: *const c_char,
+    pub in_args: *mut *mut GDBusArgInfo,
+    pub out_args: *mut *mut GDBusArgInfo,
+    pub annotations: *mut *mut GDBusAnnotationInfo,
+}
+
+#[repr(C)]
 pub struct GDBusNodeInfo {
-    ref_count: c_int,
+    pub ref_count: isize,
     pub path: *const c_char,
     pub interfaces: *mut *mut GDBusInterfaceInfo,
     pub nodes: *mut *mut GDBusNodeInfo,
@@ -123,7 +144,9 @@ extern {
     pub fn g_bus_unwatch_name(watcher_id: c_uint);
 
     pub fn g_dbus_connection_register_object(connection: *mut GDBusConnection, object_path: *const c_char, interface_info: *mut GDBusInterfaceInfo, vtable: *const GDBusInterfaceVTable, user_data: *mut c_void, user_data_free_func: GDestroyNotify, error: *mut *mut GError) -> c_uint;
-    pub fn g_dbus_connection_send_message_with_reply_sync(connection: *mut GDBusConnection, message: *mut GDBusMessage, flags: GDBusSendMessageFlags, timeout_msec: c_int, out_serial: *mut uint32_t, cancellable: *mut c_void, error: *mut *mut GError) -> *mut GDBusMessage;
+    pub fn g_dbus_connection_send_message_with_reply(connection: *mut GDBusConnection, message: *mut GDBusMessage, flags: GDBusSendMessageFlags, timeout_msec: isize, out_serial: *mut uint32_t, cancellable: *mut c_void, callback: GAsyncReadyCallback, user_data: *mut c_void) -> *mut GDBusMessage;
+    pub fn g_dbus_connection_send_message_with_reply_finish(connection: *mut GDBusConnection, res: *mut GAsyncResult, error: *mut *mut GError) -> *mut GDBusMessage;
+    pub fn g_dbus_connection_send_message_with_reply_sync(connection: *mut GDBusConnection, message: *mut GDBusMessage, flags: GDBusSendMessageFlags, timeout_msec: isize, out_serial: *mut uint32_t, cancellable: *mut c_void, error: *mut *mut GError) -> *mut GDBusMessage;
 
     pub fn g_dbus_node_info_new_for_xml(xml_data: *const c_char, error: *mut *mut GError) -> *mut GDBusNodeInfo;
     pub fn g_dbus_node_info_unref(info: *mut GDBusNodeInfo);
